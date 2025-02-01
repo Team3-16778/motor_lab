@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLa
 from PyQt6.QtCore import Qt, QTimer
 
 # === Serial Port ===
-SERIAL_PORT = "/dev/ttys032"  # 替换为你的虚拟串口或真实Arduino端口
+SERIAL_PORT = "/dev/ttys032"  # Windows: COM4, Linux/macOS: /dev/ttys001
 BAUD_RATE = 9600
 
 # Connect to the serial port
