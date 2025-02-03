@@ -6,19 +6,23 @@
 #define SENSOR_2 A1
 #define SENSOR_3 A2
 
-// === Servo Motor (Pin 9) ===
+// === Servo Motor ===
 Servo myServo;
+#define SERVO_PIN 4  // Pin for the servo control
 int servoAngle = 90;  // Default angle
 
 // === Stepper Motor Definitions ===
-#define STEP_PIN 4
-#define DIR_PIN 5
-AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
-int stepperSpeed = 200;  // Default speed
+#define IN1 8
+#define IN2 9
+#define IN3 10
+#define IN4 11
+#define HALFSTEP 8
+AccelStepper stepper(HALFSTEP, IN1, IN3, IN2, IN4);
+int stepperPosition = 2048;  // Default Position of the stepper
 
 // === DC Motor with Encoder Definitions ===
-#define DC_MOTOR_PWM 10   // PWM control pin
-#define DC_MOTOR_DIR 11   // Direction control pin
+#define DC_MOTOR_PWM 12   // PWM control pin
+#define DC_MOTOR_DIR 13   // Direction control pin
 #define ENCODER_A 2       // Encoder channel A
 #define ENCODER_B 3       // Encoder channel B
 volatile long encoderCount = 0;  // Encoder count
@@ -33,8 +37,17 @@ void encoderISR() {
     }
 }
 
+// for sensor 1
+float fun_for_sensor1(int input){
+  int MAX = 1000;
+  int MIN = 0;
+  float output;
+  output = input * 180.0 / (MAX - MIN);
+  return output;
+}
+
 void setup() {
-    Serial.begin(115200);  // Initialize serial communication
+    Serial.begin(9600);  // Initialize serial communication
 
     // === Sensor Initialization ===
     pinMode(SENSOR_1, INPUT);
@@ -42,12 +55,14 @@ void setup() {
     pinMode(SENSOR_3, INPUT);
 
     // === Initialize Servo Motor ===
-    myServo.attach(9);
+    myServo.attach(SERVO_PIN);
     myServo.write(servoAngle);  // Set initial angle
 
     // === Initialize Stepper Motor ===
     stepper.setMaxSpeed(1000);  // Set max speed
     stepper.setAcceleration(500);  // Set acceleration
+    // Move the motor to the initial position
+    stepper.moveTo(stepperPosition); // One full revolution for 28BYJ-48
 
     // === Initialize DC Motor ===
     pinMode(DC_MOTOR_PWM, OUTPUT);
@@ -89,9 +104,9 @@ void loop() {
 
         // === Control Stepper Motor ===
         else if (command.startsWith("MOTOR2:")) {
-            stepperSpeed = command.substring(7).toInt();  // Extract stepper motor speed
-            stepperSpeed = constrain(stepperSpeed, -500, 500);  // Limit speed range
-            stepper.setSpeed(stepperSpeed);
+            stepperPosition = command.substring(7).toInt();  // Extract stepper motor target position
+            stepperPosition = constrain(stepperPosition, -500, 500);  // Limit target position
+            stepper.moveTo(stepperPosition);
         }
 
         // === Control DC Motor with Encoder ===
@@ -110,7 +125,7 @@ void loop() {
     }
 
     // === Run Stepper Motor ===
-    stepper.runSpeed();
+    stepper.run();
 
     // === Send Encoder Data to Python GUI ===
     Serial.print("ENCODER:");

@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLa
 from PyQt6.QtCore import Qt, QTimer
 
 # === Serial Port ===
-SERIAL_PORT = "/dev/ttys032"  # Windows: COM4, Linux/macOS: /dev/ttys001
+SERIAL_PORT = "/dev/cu.usbmodem2101"  # Windows: COM4, Linux/macOS: /dev/ttys001
 BAUD_RATE = 9600
 
 # Connect to the serial port
@@ -19,7 +19,7 @@ try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 except:
     ser = None
-    print("警告: 无法连接到串口，使用模拟数据")
+    print("Warning: No connection, change a virtual serial port.")
 
 # === Sensor & Motor ===
 NUM_SENSORS = 3
@@ -34,13 +34,13 @@ class MatplotlibCanvas(FigureCanvas):
     def __init__(self):
         self.fig, self.ax = plt.subplots()
         super().__init__(self.fig)
-        self.ax.set_ylim(0, 1023)
+        self.ax.set_ylim(0, 1050)
         self.ax.set_xlim(0, 100)
         self.ax.set_title("Sensor Data")
         self.ax.set_xlabel("Time")
         self.ax.set_ylabel("Sensor Value")
         self.lines = [self.ax.plot([], [], label=f"Sensor {i+1}")[0] for i in range(NUM_SENSORS)]
-        self.ax.legend()
+        self.ax.legend(loc = "upper left")
 
 # === GUI Interface ===
 class ArduinoControlApp(QWidget):
@@ -147,6 +147,7 @@ class ArduinoControlApp(QWidget):
             try:
                 if ser:
                     line = ser.readline().decode('utf-8').strip()
+                    print(line)
                     if line.startswith("SENSOR:"):
                         values = list(map(int, line.split(":")[1].split(",")))
                         for i in range(NUM_SENSORS):
@@ -161,11 +162,10 @@ class ArduinoControlApp(QWidget):
 
             except:
                 pass
-            time.sleep(0.1)
 
     # Slider value changed
     def update_motor_speed(self, motor_index, value):
-        """ 当滑动条改变时，更新数值 & 发送指令 """
+        """ Update motor speed to a specific value """
         if motor_modes[motor_index] == 1:  # GUI Control Mode ONLY
             self.motor_speed_labels[motor_index].setText(str(value))  # update speed label
             threading.Thread(target=self.send_motor_command, args=(motor_index, value), daemon=True).start()  # send motor command
