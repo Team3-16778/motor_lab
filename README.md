@@ -1,5 +1,5 @@
 # motor_lab
-The codes for the motor lab (Arduino and python)
+Codes for the motor lab (Arduino and python)
 
 ## GUI
 The user interface for the motor lab.
