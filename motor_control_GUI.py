@@ -25,9 +25,11 @@ except:
 NUM_SENSORS = 3
 NUM_MOTORS = 3
 sensor_values = np.zeros((NUM_SENSORS, 100))  # Record sensor values, 100 data points
-motor_speeds = [0] * NUM_MOTORS  # motor speeds
+motor_states = [0] * NUM_MOTORS  # motor states
 motor_modes = [0] * NUM_MOTORS  # 0: Reset & Stop, 1: GUI Control, 2: Sensor Auto Control
 reading_sensors = False  # Check Botton of Sensor Data Reading
+motor_ranges = [[0, 180], [0, 255], [0, 255]]
+Default_motor_states = [90, 0, 0]
 
 # === Matplotlib Canvas (PyQt6)===
 class MatplotlibCanvas(FigureCanvas):
@@ -61,7 +63,7 @@ class ArduinoControlApp(QWidget):
 
         # Motor Control UI
         self.motor_sliders = []
-        self.motor_speed_labels = []  # motor speed labels
+        self.motor_states_labels = []  # motor state labels
         self.motor_modes_dropdowns = []
         self.motor_timers = [QTimer(self) for _ in range(NUM_MOTORS)]  # QTimer: limit serial write frequency
 
@@ -78,29 +80,29 @@ class ArduinoControlApp(QWidget):
             dropdown.currentIndexChanged.connect(lambda index, i=i: self.set_motor_mode(i, index))
             self.motor_modes_dropdowns.append(dropdown)
 
-            # Motor Speed Control Slider
+            # Motor States Control Slider
             slider = QSlider(Qt.Orientation.Horizontal)
             slider.setFixedWidth(400)  # slider width
-            slider.setMinimum(0)
-            slider.setMaximum(255)
-            slider.setValue(0)
+            slider.setMinimum(motor_ranges[i][0])
+            slider.setMaximum(motor_ranges[i][1])
+            slider.setValue(Default_motor_states[i])
             slider.setEnabled(False)  # Default disabled
-            slider.valueChanged.connect(lambda value, i=i: self.update_motor_speed(i, value))  # valueChanged trigger
+            slider.valueChanged.connect(lambda value, i=i: self.update_motor_states(i, value))  # valueChanged trigger
             self.motor_sliders.append(slider)
 
             # QLabel to display slider value
-            speed_label = QLabel("0")  # Default value
-            self.motor_speed_labels.append(speed_label)
+            states_label = QLabel(str(Default_motor_states[i]))  # Default value
+            self.motor_states_labels.append(states_label)
 
             # QTimer to limit serial write frequency
             self.motor_timers[i].setSingleShot(True)
-            self.motor_timers[i].timeout.connect(lambda i=i: self.set_motor_speed(i, motor_speeds[i]))
+            self.motor_timers[i].timeout.connect(lambda i=i: self.set_motor_states(i, motor_states[i]))
 
             # Add widgets to layout
             motor_layout.addWidget(motor_label)
             motor_layout.addWidget(dropdown) 
             motor_layout.addWidget(slider) 
-            motor_layout.addWidget(speed_label)
+            motor_layout.addWidget(states_label)
             motor_layout.addStretch()
 
             setattr(self, f'motor_layout_{i}', motor_layout)
@@ -155,27 +157,27 @@ class ArduinoControlApp(QWidget):
                             sensor_values[i][-1] = values[i]
                             self.sensor_labels[i].setText(f"Sensor {i+1}: {values[i]}")
                         
-                        # If in auto control mode, update motor speed by sensor data
+                        # If in auto control mode, update motor state by sensor data
                         for i in range(NUM_MOTORS):
                             if motor_modes[i] == 2:  # Auto Control
-                                self.set_motor_speed(i, values[i] // 4)  # Map sensor value to 0-255
+                                self.set_motor_states(i, values[i] // 4)  # Map sensor value to 0-255
 
             except:
                 pass
 
     # Slider value changed
-    def update_motor_speed(self, motor_index, value):
-        """ Update motor speed to a specific value """
+    def update_motor_states(self, motor_index, value):
+        """ Update motor states to a specific value """
         if motor_modes[motor_index] == 1:  # GUI Control Mode ONLY
-            self.motor_speed_labels[motor_index].setText(str(value))  # update speed label
+            self.motor_states_labels[motor_index].setText(str(value))  # update states label
             threading.Thread(target=self.send_motor_command, args=(motor_index, value), daemon=True).start()  # send motor command
 
-    # Update motor speed to a specific value
-    def set_motor_speed(self, motor_index, value):
-        global motor_speeds
+    # Update motor states to a specific value
+    def set_motor_states(self, motor_index, value):
+        global motor_states
         if motor_modes[motor_index] == 1:  # GUI Control Mode ONLY
-            motor_speeds[motor_index] = value
-            self.motor_speed_labels[motor_index].setText(str(value))  # update speed label
+            motor_states[motor_index] = value
+            self.motor_states_labels[motor_index].setText(str(value))  # update states label
             if ser:
                 threading.Thread(target=self.send_motor_command, args=(motor_index, value), daemon=True).start()   
     # Send motor command
@@ -188,23 +190,23 @@ class ArduinoControlApp(QWidget):
         global motor_modes
         motor_modes[motor_index] = mode
         if mode == 0:  # Reset & Stop
-            self.motor_sliders[motor_index].setValue(0)  # Set slider to 0
-            self.motor_speed_labels[motor_index].setText("0")  # Set speed label to 0
+            self.motor_sliders[motor_index].setValue(Default_motor_states[motor_index])  # Set slider to Default
+            self.motor_states_labels[motor_index].setText(str(Default_motor_states[motor_index]))  # Set state label to 0
             self.motor_sliders[motor_index].setEnabled(False)
-            self.set_motor_speed(motor_index, 0)
+            self.set_motor_states(motor_index, Default_motor_states[motor_index])
         elif mode == 1:  # GUI Control
             self.motor_sliders[motor_index].setEnabled(True)
         elif mode == 2:  # Auto Control
-            self.motor_sliders[motor_index].setValue(0) 
-            self.motor_speed_labels[motor_index].setText("0") 
+            self.motor_sliders[motor_index].setValue(Default_motor_states[motor_index]) 
+            self.motor_states_labels[motor_index].setText(str(Default_motor_states[motor_index])) 
             self.motor_sliders[motor_index].setEnabled(False)
     
     # === Slider Update Rate Restriction ===
     def schedule_motor_update(self, motor_index, value):
-        global motor_speeds
-        motor_speeds[motor_index] = value
-        self.motor_speed_labels[motor_index].setText(str(value))
-        self.motor_timers[motor_index].start(100)  # update motor speed every 100ms
+        global motor_states
+        motor_states[motor_index] = value
+        self.motor_states_labels[motor_index].setText(str(value))
+        self.motor_timers[motor_index].start(10)  # update motor state every 10ms
 
     # Update plot of sensor data
     def update_plot(self, frame):
