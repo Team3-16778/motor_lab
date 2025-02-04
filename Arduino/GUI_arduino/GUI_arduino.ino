@@ -18,7 +18,7 @@ int servoAngle = 90;  // Default angle
 #define IN4 11
 #define HALFSTEP 8
 AccelStepper stepper(HALFSTEP, IN1, IN3, IN2, IN4);
-int stepperPosition = 2048;  // Default Position of the stepper
+int stepperPosition = 0;  // Default Position of the stepper
 
 // === DC Motor with Encoder Definitions ===
 #define DC_MOTOR_PWM 12   // PWM control pin
@@ -37,13 +37,38 @@ void encoderISR() {
     }
 }
 
-// for sensor 1
-float fun_for_sensor1(int input){
-  int MAX = 1000;
+// Senser transfer function
+// Sensor 1 (Potentiometer): digit to resistance value(Ohm)
+float R_senser1 = 10000.0
+float transfer_sensor1(int input){
+  int MAX = 1024;
   int MIN = 0;
   float output;
-  output = input * 180.0 / (MAX - MIN);
+  // Output the Resistance of the Potentiometer
+  output = input / (MAX - MIN) * R_senser1;
   return output;
+}
+// Sensor 2 (Photoresistor): digit to percentage of illumination
+float transfer_sensor2(int input){
+  int MIN = 450;
+  int MAX = 850;
+  input = constrain(input, MIN, MAX);
+  float output = (float)(input - MIN) / (MAX - MIN) * 100.0;
+  return output;
+}
+// Sensor 3 (Flex): digit to degrees
+const float VCC = 5;
+const float R_DIV = 47500.0; 
+const float STRAIGHT_RESISTANCE = 163000.0; 
+const float BEND_RESISTANCE = 500000.0;
+float transfer_sensor3(int input){
+  int flexADC = input;
+  float flexV = flexADC * VCC / 1023.0;
+  // Resistance(ohms)
+  float flexR = R_DIV * (VCC / flexV - 1.0);
+  // mapping the R to bending degree
+  float angle = map(flexR, STRAIGHT_RESISTANCE, BEND_RESISTANCE,0, 90.0);
+  return angle;
 }
 
 void setup() {
@@ -84,11 +109,11 @@ void loop() {
 
     // === Send Sensor Data to Python GUI ===
     Serial.print("SENSOR:");
-    Serial.print(sensor1Value);
+    Serial.print(transfer_sensor1(sensor1Value));
     Serial.print(",");
-    Serial.print(sensor2Value);
+    Serial.print(transfer_sensor2(sensor2Value));
     Serial.print(",");
-    Serial.println(sensor3Value);
+    Serial.println(transfer_sensor3(sensor3Value));
 
     // === Listen for Motor Control Commands from Python GUI ===
     while (Serial.available()) {
@@ -103,14 +128,14 @@ void loop() {
         }
 
         // === Control Stepper Motor ===
-        else if (command.startsWith("MOTOR2:")) {
+        if (command.startsWith("MOTOR2:")) {
             stepperPosition = command.substring(7).toInt();  // Extract stepper motor target position
-            stepperPosition = constrain(stepperPosition, -500, 500);  // Limit target position
+            stepperPosition = constrain(stepperPosition, -2048, 2048);  // Limit target position
             stepper.moveTo(stepperPosition);
         }
 
         // === Control DC Motor with Encoder ===
-        else if (command.startsWith("MOTOR3:")) {
+        if (command.startsWith("MOTOR3:")) {
             motorSpeed = command.substring(7).toInt();  // Extract DC motor speed
             motorSpeed = constrain(motorSpeed, -255, 255);  // Limit PWM range
             
@@ -128,8 +153,8 @@ void loop() {
     stepper.run();
 
     // === Send Encoder Data to Python GUI ===
-    Serial.print("ENCODER:");
-    Serial.println(encoderCount);
+    // Serial.print("ENCODER:");
+    // Serial.println(encoderCount);
 
     delay(50);  // 50ms sampling interval
 }
