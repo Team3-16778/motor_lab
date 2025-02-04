@@ -20,11 +20,11 @@ void setup() {
 }
 
 void loop() {
+    stepper.moveTo(stepper.currentPosition()+10);
     // If the motor is at the target position, move it in the opposite direction
-    // if (stepper.distanceToGo() == 0) {
-    //     stepper.moveTo(-stepper.currentPosition());
-    // }
+    if (stepper.distanceToGo() == 0) {
+        stepper.moveTo(-stepper.currentPosition());
+    }
     // Run the motor to the target position
-    stepper.moveTo(-2048);
     stepper.run();
 }

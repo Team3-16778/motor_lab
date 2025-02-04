@@ -1,8 +1,8 @@
 # motor_lab
-The codes for the motor lab (Arduino and python)
+Codes for the motor lab (Arduino and python)
 
 ## GUI
-The GUI is a user interface for the motor lab,written in python and uses pyqt6.
+The user interface for the motor lab.
 
 ### Python version
 - Python 3.12.3
@@ -11,3 +11,18 @@ The GUI is a user interface for the motor lab,written in python and uses pyqt6.
 - pyqt6
 - pyserial
 - matplotlib
+- numpy
+
+## Arduino
+
+### Hardware
+- Arduino Uno
+- Sensors
+    - Potentiometer
+    - Photoresistor
+    - Flux
+    - Encoder(Integrated)
+- Motors
+    - Servo motor
+    - Stepper motor
+    - DC motor with encoder
