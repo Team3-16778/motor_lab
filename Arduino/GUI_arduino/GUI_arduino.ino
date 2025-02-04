@@ -6,19 +6,23 @@
 #define SENSOR_2 A1
 #define SENSOR_3 A2
 
-// === Servo Motor (Pin 9) ===
+// === Servo Motor ===
 Servo myServo;
+#define SERVO_PIN 4  // Pin for the servo control
 int servoAngle = 90;  // Default angle
 
 // === Stepper Motor Definitions ===
-#define STEP_PIN 4
-#define DIR_PIN 5
-AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
-int stepperSpeed = 200;  // Default speed
+#define IN1 8
+#define IN2 9
+#define IN3 10
+#define IN4 11
+#define HALFSTEP 8
+AccelStepper stepper(HALFSTEP, IN1, IN3, IN2, IN4);
+int stepperPosition = 0;  // Default Position of the stepper
 
 // === DC Motor with Encoder Definitions ===
-#define DC_MOTOR_PWM 10   // PWM control pin
-#define DC_MOTOR_DIR 11   // Direction control pin
+#define DC_MOTOR_PWM 12   // PWM control pin
+#define DC_MOTOR_DIR 13   // Direction control pin
 #define ENCODER_A 2       // Encoder channel A
 #define ENCODER_B 3       // Encoder channel B
 volatile long encoderCount = 0;  // Encoder count
@@ -33,8 +37,42 @@ void encoderISR() {
     }
 }
 
+// Senser transfer function
+// Sensor 1 (Potentiometer): digit to resistance value(Ohm)
+float R_senser1 = 10000.0
+float transfer_sensor1(int input){
+  int MAX = 1024;
+  int MIN = 0;
+  float output;
+  // Output the Resistance of the Potentiometer
+  output = input / (MAX - MIN) * R_senser1;
+  return output;
+}
+// Sensor 2 (Photoresistor): digit to percentage of illumination
+float transfer_sensor2(int input){
+  int MIN = 450;
+  int MAX = 850;
+  input = constrain(input, MIN, MAX);
+  float output = (float)(input - MIN) / (MAX - MIN) * 100.0;
+  return output;
+}
+// Sensor 3 (Flex): digit to degrees
+const float VCC = 5;
+const float R_DIV = 47500.0; 
+const float STRAIGHT_RESISTANCE = 163000.0; 
+const float BEND_RESISTANCE = 500000.0;
+float transfer_sensor3(int input){
+  int flexADC = input;
+  float flexV = flexADC * VCC / 1023.0;
+  // Resistance(ohms)
+  float flexR = R_DIV * (VCC / flexV - 1.0);
+  // mapping the R to bending degree
+  float angle = map(flexR, STRAIGHT_RESISTANCE, BEND_RESISTANCE,0, 90.0);
+  return angle;
+}
+
 void setup() {
-    Serial.begin(115200);  // Initialize serial communication
+    Serial.begin(9600);  // Initialize serial communication
 
     // === Sensor Initialization ===
     pinMode(SENSOR_1, INPUT);
@@ -42,12 +80,14 @@ void setup() {
     pinMode(SENSOR_3, INPUT);
 
     // === Initialize Servo Motor ===
-    myServo.attach(9);
+    myServo.attach(SERVO_PIN);
     myServo.write(servoAngle);  // Set initial angle
 
     // === Initialize Stepper Motor ===
     stepper.setMaxSpeed(1000);  // Set max speed
     stepper.setAcceleration(500);  // Set acceleration
+    // Move the motor to the initial position
+    stepper.moveTo(stepperPosition); // One full revolution for 28BYJ-48
 
     // === Initialize DC Motor ===
     pinMode(DC_MOTOR_PWM, OUTPUT);
@@ -69,11 +109,11 @@ void loop() {
 
     // === Send Sensor Data to Python GUI ===
     Serial.print("SENSOR:");
-    Serial.print(sensor1Value);
+    Serial.print(transfer_sensor1(sensor1Value));
     Serial.print(",");
-    Serial.print(sensor2Value);
+    Serial.print(transfer_sensor2(sensor2Value));
     Serial.print(",");
-    Serial.println(sensor3Value);
+    Serial.println(transfer_sensor3(sensor3Value));
 
     // === Listen for Motor Control Commands from Python GUI ===
     while (Serial.available()) {
@@ -88,14 +128,14 @@ void loop() {
         }
 
         // === Control Stepper Motor ===
-        else if (command.startsWith("MOTOR2:")) {
-            stepperSpeed = command.substring(7).toInt();  // Extract stepper motor speed
-            stepperSpeed = constrain(stepperSpeed, -500, 500);  // Limit speed range
-            stepper.setSpeed(stepperSpeed);
+        if (command.startsWith("MOTOR2:")) {
+            stepperPosition = command.substring(7).toInt();  // Extract stepper motor target position
+            stepperPosition = constrain(stepperPosition, -2048, 2048);  // Limit target position
+            stepper.moveTo(stepperPosition);
         }
 
         // === Control DC Motor with Encoder ===
-        else if (command.startsWith("MOTOR3:")) {
+        if (command.startsWith("MOTOR3:")) {
             motorSpeed = command.substring(7).toInt();  // Extract DC motor speed
             motorSpeed = constrain(motorSpeed, -255, 255);  // Limit PWM range
             
@@ -110,11 +150,11 @@ void loop() {
     }
 
     // === Run Stepper Motor ===
-    stepper.runSpeed();
+    stepper.run();
 
     // === Send Encoder Data to Python GUI ===
-    Serial.print("ENCODER:");
-    Serial.println(encoderCount);
+    // Serial.print("ENCODER:");
+    // Serial.println(encoderCount);
 
     delay(50);  // 50ms sampling interval
 }
