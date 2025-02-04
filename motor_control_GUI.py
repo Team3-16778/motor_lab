@@ -11,22 +11,22 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLa
 from PyQt6.QtCore import Qt, QTimer
 
 # === Serial Port ===
-SERIAL_PORT = "/dev/cu.usbmodem101"  # Windows: COM4, Linux/macOS: /dev/ttys001
-BAUD_RATE = 9600
+SERIAL_PORT = "/dev/cu.usbmodem2101"  # Windows: COM4, Linux/macOS: /dev/ttys001
+BAUD_RATE = 115200
 
 # Connect to the serial port
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 except:
     ser = None
-    print("Warning: No connection, change a virtual serial port.")
+    print("====== Warning: Wrong Serial Port, NO CONNECTION !!! ======")
 
 # === Sensor & Motor ===
 NUM_SENSORS = 3
 sensor_names = ["Potentiometer", "Photoresistor", "Flux"]
 sensor_values = np.zeros((NUM_SENSORS, 100))  # Record sensor values, 100 data points
 reading_sensors = False  # Check Botton of Sensor Data Reading
-sensor_data_ranges = [[0, 10000], [0, 100], [0, 0]]
+sensor_data_ranges = [[0, 10000], [0, 100], [-120, 120]]
 
 NUM_MOTORS = 3
 motor_names = ["Servo", "Stepper", "DC with Encoder"]
@@ -34,8 +34,9 @@ motor_states = [0] * NUM_MOTORS  # motor states
 motor_modes = [0] * NUM_MOTORS  # 0: Reset & Stop, 1: GUI Control, 2: Sensor Auto Control
 motor_ranges_display = [[0, 180], [-180, 180], [0, 255]]
 motor_ranges = [[0, 180], [-2048, 2048], [0, 255]]
-default_motor_states = [90, -180, 0]
+default_motor_states = [90, 0, 0]
 
+## TODO: Using PyQtGraph to plot sensor data (Faster than Matplotlib)
 # === Matplotlib Canvas (PyQt6)===
 class MatplotlibCanvas(FigureCanvas):
     def __init__(self):
@@ -184,13 +185,12 @@ class ArduinoControlApp(QWidget):
     # Update motor states to a specific value
     def set_motor_states(self, motor_index, value):
         global motor_states
-        if motor_modes[motor_index] == 2:  # Auto control by sensor ONLY
-            motor_states[motor_index] = value
-            self.motor_states_labels[motor_index].setText(str(value))  # update states label
-            if ser:
-                # map slider value to motor range
-                value_mapped = np.interp(value, motor_ranges_display[motor_index], motor_ranges[motor_index])
-                threading.Thread(target=self.send_motor_command, args=(motor_index, value_mapped), daemon=True).start() 
+        motor_states[motor_index] = value
+        self.motor_states_labels[motor_index].setText(str(value))  # update states label
+        if ser:
+            # map slider value to motor range
+            value_mapped = np.interp(value, motor_ranges_display[motor_index], motor_ranges[motor_index])
+            threading.Thread(target=self.send_motor_command, args=(motor_index, value_mapped), daemon=True).start() 
   
     # Send motor command
     def send_motor_command(self, motor_index, value):

@@ -11,3 +11,18 @@ The user interface for the motor lab.
 - pyqt6
 - pyserial
 - matplotlib
+- numpy
+
+## Arduino
+
+### Hardware
+- Arduino Uno
+- Sensors
+    - Potentiometer
+    - Photoresistor
+    - Flux
+    - Encoder(Integrated)
+- Motors
+    - Servo motor
+    - Stepper motor
+    - DC motor with encoder
