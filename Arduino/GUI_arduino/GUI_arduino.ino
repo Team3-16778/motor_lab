@@ -21,21 +21,119 @@ AccelStepper stepper(HALFSTEP, IN1, IN3, IN2, IN4);
 int stepperPosition = 0;  // Default Position of the stepper
 
 // === DC Motor with Encoder Definitions ===
-#define DC_MOTOR_PWM 5   // PWM control pin
-#define DC_MOTOR_DIR 4   // Direction control pin
-#define ENCODER_A 2       // Encoder channel A
-#define ENCODER_B 3       // Encoder channel B
-volatile long encoderCount = 0;  // Encoder count
-int motorSpeed = 0;  // PWM speed (0-255)
+// Pin Definition
+const byte interruptPinA = 2;
+const byte interruptPinB = 3;
+volatile long EncoderCount = 0;
+const byte PWMPin = 6;
+const byte DirPin1 = 7;
+const byte DirPin2 = 4;
+
+// PID controller
+float kp = 0.02;
+float ki = 0.00015 ;
+float kd = 0;
+
+unsigned long t;
+unsigned long t_prev = 0;
+
+volatile unsigned long count = 0;
+unsigned long count_prev = 0;
+
+float Theta, RPM, RPM_d;
+float Theta_prev = 0;
+int dt;
+float RPM_max = 230;
+
+#define pi 3.1416
+float Vmax = 6;
+float Vmin = -6;
+float V = 0.1;
+float e, e_prev = 0, inte, inte_prev = 0; 
 
 // === Interrupt for Encoder ===
-void encoderISR() {
-    if (digitalRead(ENCODER_B) == HIGH) {
-        encoderCount++;
-    } else {
-        encoderCount--;
+void ISR_EncoderA() {
+  bool PinB = digitalRead(interruptPinB);
+  bool PinA = digitalRead(interruptPinA);
+
+  if (PinB == LOW) {
+    if (PinA == HIGH) {
+      EncoderCount++;
     }
+    else {
+      EncoderCount--;
+    }
+  }
+
+  else {
+    if (PinA == HIGH) {
+      EncoderCount--;
+    }
+    else {
+      EncoderCount++;
+    }
+  }
 }
+
+void ISR_EncoderB() {
+  bool PinB = digitalRead(interruptPinA);
+  bool PinA = digitalRead(interruptPinB);
+
+  if (PinA == LOW) {
+    if (PinB == HIGH) {
+      EncoderCount--;
+    }
+    else {
+      EncoderCount++;
+    }
+  }
+
+  else {
+    if (PinB == HIGH) {
+      EncoderCount++;
+    }
+    else {
+      EncoderCount--;
+    }
+  }
+}
+
+float sign(float x) {
+  if (x > 0) {
+    return 1;
+  } else if (x < 0) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+//**DC Motor Driver Functions**
+void WriteDriverVoltage(float V, float Vmax) {
+  int PWMval = int(255 * abs(V) / Vmax);
+  if (PWMval > 255) {
+    PWMval = 255;
+  }
+  if (V > 0) {
+    digitalWrite(DirPin1, HIGH);
+    digitalWrite(DirPin2, LOW);
+  }
+  else if (V < 0) {
+    digitalWrite(DirPin1, LOW);
+    digitalWrite(DirPin2, HIGH);
+  }
+  else {
+    digitalWrite(DirPin1, LOW);
+    digitalWrite(DirPin2, LOW);
+  }
+  analogWrite(PWMPin, PWMval);
+}
+
+ISR(TIMER1_COMPA_vect) {
+  count++;
+  Serial.print(count * 0.05); Serial.print(" \t");
+}
+
 
 // Senser transfer function
 // Sensor 1 (Potentiometer): digit to resistance value(Ohm)
@@ -90,11 +188,22 @@ void setup() {
     stepper.moveTo(stepperPosition); // One full revolution for 28BYJ-48
 
     // === Initialize DC Motor ===
-    pinMode(DC_MOTOR_PWM, OUTPUT);
-    pinMode(DC_MOTOR_DIR, OUTPUT);
-    pinMode(ENCODER_A, INPUT_PULLUP);
-    pinMode(ENCODER_B, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_A), encoderISR, CHANGE);  // Attach interrupt for encoder
+    pinMode(interruptPinA, INPUT_PULLUP);
+    pinMode(interruptPinB, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(interruptPinA), ISR_EncoderA, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(interruptPinB), ISR_EncoderB, CHANGE);
+    pinMode(DirPin1, OUTPUT);
+    pinMode(DirPin2, OUTPUT);
+
+    cli();
+    TCCR1A = 0;
+    TCCR1B = 0;
+    TCNT1 = 0;
+    OCR1A = 12499; //Prescaler = 64
+    TCCR1B |= (1 << WGM12);
+    TCCR1B |= (1 << CS11 | 1 << CS10);
+    TIMSK1 |= (1 << OCIE1A);
+    sei();
 
     // Stop all motors initially
     analogWrite(DC_MOTOR_PWM, 0);
@@ -137,15 +246,7 @@ void loop() {
         // === Control DC Motor with Encoder ===
         if (command.startsWith("MOTOR3:")) {
             motorSpeed = command.substring(7).toInt();  // Extract DC motor speed
-            motorSpeed = constrain(motorSpeed, -255, 255);  // Limit PWM range
-            
-            if (motorSpeed >= 0) {
-                digitalWrite(DC_MOTOR_DIR, HIGH);
-                analogWrite(DC_MOTOR_PWM, motorSpeed);
-            } else {
-                digitalWrite(DC_MOTOR_DIR, LOW);
-                analogWrite(DC_MOTOR_PWM, -motorSpeed);
-            }
+            motorSpeed = constrain(motorSpeed, 0, RPM_max);  // Limit PWM range
         }
     }
 
@@ -153,9 +254,36 @@ void loop() {
     // If the motor is at the target position, move it in the opposite direction
     stepper.run();
 
-    // === Send Encoder Data to Python GUI ===
-    // Serial.print("ENCODER:");
-    // Serial.println(encoderCount);
+    // == Run the DC motor
+    if (count > count_prev) {
+      t = millis();
+      Theta = EncoderCount / 900.0;
+      dt = (t - t_prev);
+      RPM_d = RPM_max * (sin(2 * pi * 0.005 * t / 1000.0))
+          * sign(sin(2 * pi * 0.05 * t / 1000.0));
+      if (t / 1000.0 > 100) {
+        RPM_d = 0;
+      }
+      RPM = (Theta - Theta_prev) / (dt / 1000.0) * 60;
+      e = RPM_d - RPM;
+      inte = inte_prev + (dt * (e + e_prev) / 2);
+      V = kp * e + ki * inte + (kd * (e - e_prev) / dt) ;
+      if (V > Vmax) {
+        V = Vmax;
+        inte = inte_prev;
+      }
+      if (V < Vmin) {
+        V = Vmin;
+        inte = inte_prev;
+      }
+      WriteDriverVoltage(V, Vmax);
+      Theta_prev = Theta;
+      count_prev = count;
+      t_prev = t;
+      inte_prev = inte;
+      e_prev = e;
+    }
+
 
     //delay(1);  // 1ms sampling interval
 }
