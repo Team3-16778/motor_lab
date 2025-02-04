@@ -32,8 +32,8 @@ NUM_MOTORS = 3
 motor_names = ["Servo", "Stepper", "DC with Encoder"]
 motor_states = [0] * NUM_MOTORS  # motor states
 motor_modes = [0] * NUM_MOTORS  # 0: Reset & Stop, 1: GUI Control, 2: Sensor Auto Control
-motor_ranges_display = [[0, 180], [-180, 180], [0, 255]]
-motor_ranges = [[0, 180], [-2048, 2048], [0, 255]]
+motor_ranges_display = [[0, 180], [-180, 180], [0, 230]]
+motor_ranges = [[0, 180], [-2048, 2048], [0, 230]]
 default_motor_states = [90, 0, 0]
 
 ## TODO: Using PyQtGraph to plot sensor data (Faster than Matplotlib)

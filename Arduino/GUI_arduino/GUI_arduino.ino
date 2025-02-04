@@ -129,9 +129,9 @@ void WriteDriverVoltage(float V, float Vmax) {
   analogWrite(PWMPin, PWMval);
 }
 
-ISR(TIMER1_COMPA_vect) {
+ISR(TIMER2_COMPA_vect) {
   count++;
-  Serial.print(count * 0.05); Serial.print(" \t");
+  //Serial.print(count * 0.05); Serial.print(" \t");
 }
 
 
@@ -196,18 +196,14 @@ void setup() {
     pinMode(DirPin2, OUTPUT);
 
     cli();
-    TCCR1A = 0;
-    TCCR1B = 0;
-    TCNT1 = 0;
-    OCR1A = 12499; //Prescaler = 64
-    TCCR1B |= (1 << WGM12);
-    TCCR1B |= (1 << CS11 | 1 << CS10);
-    TIMSK1 |= (1 << OCIE1A);
+    TCCR2A = 0;
+    TCCR2B = 0;
+    TCNT2 = 0;
+    OCR2A = 249; //Prescaler = 64
+    TCCR2A |= (1 << WGM12);
+    TCCR2B |= (1 << CS22);
+    TIMSK2 |= (1 << OCIE2A);
     sei();
-
-    // Stop all motors initially
-    analogWrite(DC_MOTOR_PWM, 0);
-    digitalWrite(DC_MOTOR_DIR, LOW);
 }
 
 void loop() {
@@ -245,8 +241,8 @@ void loop() {
 
         // === Control DC Motor with Encoder ===
         if (command.startsWith("MOTOR3:")) {
-            motorSpeed = command.substring(7).toInt();  // Extract DC motor speed
-            motorSpeed = constrain(motorSpeed, 0, RPM_max);  // Limit PWM range
+            RPM_d = command.substring(7).toInt();  // Extract DC motor speed
+            RPM_d = constrain(RPM_d, 0, RPM_max);  // Limit PWM range
         }
     }
 
