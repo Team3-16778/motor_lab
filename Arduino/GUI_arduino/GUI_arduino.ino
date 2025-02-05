@@ -40,7 +40,7 @@ unsigned long t_prev = 0;
 volatile unsigned long count = 0;
 unsigned long count_prev = 0;
 
-float Theta, RPM, RPM_d;
+float Theta, RPM, RPM_d = 50;
 float Theta_prev = 0;
 int dt;
 float RPM_max = 230;
@@ -241,8 +241,9 @@ void loop() {
 
         // === Control DC Motor with Encoder ===
         if (command.startsWith("MOTOR3:")) {
-            RPM_d = command.substring(7).toInt();  // Extract DC motor speed
-            RPM_d = constrain(RPM_d, 0, RPM_max);  // Limit PWM range
+          RPM_d = command.substring(7).toInt();  // Extract DC motor speed
+          Serial.println(RPM_d);
+          RPM_d = constrain(RPM_d, -RPM_max, RPM_max);  // Limit PWM range
         }
     }
 
@@ -255,11 +256,6 @@ void loop() {
       t = millis();
       Theta = EncoderCount / 900.0;
       dt = (t - t_prev);
-      RPM_d = RPM_max * (sin(2 * pi * 0.005 * t / 1000.0))
-          * sign(sin(2 * pi * 0.05 * t / 1000.0));
-      if (t / 1000.0 > 100) {
-        RPM_d = 0;
-      }
       RPM = (Theta - Theta_prev) / (dt / 1000.0) * 60;
       e = RPM_d - RPM;
       inte = inte_prev + (dt * (e + e_prev) / 2);
@@ -272,6 +268,7 @@ void loop() {
         V = Vmin;
         inte = inte_prev;
       }
+      Serial.println(RPM_d);
       WriteDriverVoltage(V, Vmax);
       Theta_prev = Theta;
       count_prev = count;

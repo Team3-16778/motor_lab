@@ -32,8 +32,8 @@ NUM_MOTORS = 3
 motor_names = ["Servo", "Stepper", "DC with Encoder"]
 motor_states = [0] * NUM_MOTORS  # motor states
 motor_modes = [0] * NUM_MOTORS  # 0: Reset & Stop, 1: GUI Control, 2: Sensor Auto Control
-motor_ranges_display = [[0, 180], [-180, 180], [0, 230]]
-motor_ranges = [[0, 180], [-2048, 2048], [0, 230]]
+motor_ranges_display = [[0, 180], [-180, 180], [-230, 230]]
+motor_ranges = [[0, 180], [-2048, 2048], [-230, 230]]
 default_motor_states = [90, 0, 0]
 
 ## TODO: Using PyQtGraph to plot sensor data (Faster than Matplotlib)
@@ -155,7 +155,7 @@ class ArduinoControlApp(QWidget):
             try:
                 if ser:
                     line = ser.readline().decode('utf-8').strip()
-                    print(line)
+                    #print(line)
                     if line.startswith("SENSOR:"):
                         values = list(map(float, line.split(":")[1].strip().split(",")))
                         for i in range(NUM_SENSORS):
@@ -179,7 +179,7 @@ class ArduinoControlApp(QWidget):
             self.motor_states_labels[motor_index].setText(str(value))  # update states label
             # map slider value to motor range
             value_mapped = np.interp(value, motor_ranges_display[motor_index], motor_ranges[motor_index])
-            #print(value,value_mapped)
+            print(value,value_mapped)
             threading.Thread(target=self.send_motor_command, args=(motor_index, value_mapped), daemon=True).start()  # send motor command
 
     # Update motor states to a specific value
