@@ -3,8 +3,8 @@ import random
 import serial
 
 # Create virtual Arduino（Windows: COMx, macOS/Linux: /dev/ttySx or /dev/pts/x）
-SERIAL_PORT = '/dev/ttys031'  # Windows: COM4, Linux/macOS: /dev/ttys001
-BAUD_RATE = 9600
+SERIAL_PORT = '/dev/ttys011'  # Windows: COM4, Linux/macOS: /dev/ttys001
+BAUD_RATE = 115200
 
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
@@ -12,9 +12,11 @@ try:
 
     while True:
         # 生成模拟传感器数据（随机数模拟实际传感器）
-        sensor_value = random.randint(200, 800)
-        ser.write(f"SENSOR:{sensor_value}\n".encode("utf-8"))
-        time.sleep(0.1)  # 模拟传感器数据更新频率
+        sensor1_value = random.randint(0, 10000)
+        sensor2_value = random.randint(0, 100)
+        sensor3_value = random.randint(-120, 120)
+        ser.write(f"SENSOR:{sensor1_value}, {sensor2_value}, {sensor3_value}\n".encode("utf-8"))
+        time.sleep(0.001)  # 模拟传感器数据更新频率
 
         # 监听 Python GUI 发送的电机控制指令
         if ser.in_waiting:

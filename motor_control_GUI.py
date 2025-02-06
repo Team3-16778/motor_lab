@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLa
 from PyQt6.QtCore import Qt, QTimer
 
 # === Serial Port ===
-SERIAL_PORT = "/dev/cu.usbmodem101"  # Windows: COM4, Linux/macOS: /dev/ttys001
+SERIAL_PORT = "/dev/ttys013"  # Windows: COM4, Linux/macOS: /dev/ttys001
 BAUD_RATE = 115200
 
 # Connect to the serial port
